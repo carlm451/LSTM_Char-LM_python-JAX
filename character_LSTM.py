@@ -139,9 +139,9 @@ def lossFun(inputs, targets, hprev, cprev):
     gamma_fs[t] = np.sigmoid(zf)
     gamma_os[t] = np.sigmoid(zo)
 
-    cs[t] = np.multiply(c_tildes[t],gamma_u) + np.multiply(cs[t-1],gamma_f)
+    cs[t] = np.multiply(c_tildes[t],gamma_us[t]) + np.multiply(cs[t-1],gamma_fs[t])
 
-    hs[t] = np.multiply(cs[t],gamma_o) # hidden state
+    hs[t] = np.multiply(cs[t],gamma_os[t]) # hidden state
     
     ys[t] = np.dot(Why, hs[t]) + by # unnormalized log probabilities for next chars
     
@@ -206,7 +206,7 @@ def lossFun(inputs, targets, hprev, cprev):
     np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
   return loss, grads, hs[len(inputs)-1], cs[len(inputs)-1]
 
-def sample(h, seed_ix, n):
+def sample(h, c, seed_ix, n):
   """ 
   sample a sequence of integers from the model 
   h is memory state, seed_ix is seed letter for first time step
@@ -215,7 +215,22 @@ def sample(h, seed_ix, n):
   x[seed_ix] = 1
   ixes = []
   for t in range(n):
-    h = np.tanh(np.dot(Wxh, x) + np.dot(Whh, h) + bh)
+
+    zc = np.dot(Wxc,x) + np.dot(Whc,h) + bc  # linear activation for candidate cell state C~
+    zu = np.dot(Wxu,x) + np.dot(Whu,h) + bu  # linear activation for update gate
+    zf = np.dot(Wxf,x) + np.dot(Whf,h) + bf  # linear activation for forget gate
+    zo = np.dot(Wxo,x) + np.dot(Who,h) + bo  # linear activation for output gate
+      
+    c_tilde = np.tanh(zc)
+
+    gamma_u = np.sigmoid(zu)
+    gamma_f = np.sigmoid(zf)
+    gamma_o = np.sigmoid(zo)
+
+    c = np.multiply(c_tilde,gamma_u) + np.multiply(c,gamma_f)
+
+    h = np.multiply(c,gamma_o) # hidden state
+
     y = np.dot(Why, h) + by
     p = np.exp(y) / np.sum(np.exp(y))
     ix = np.random.choice(range(vocab_size), p=p.ravel())
@@ -255,7 +270,7 @@ while n<1e6:
     print('----\n %s \n----' % (txt, ))
 
   # forward seq_length characters through the net and fetch gradient
-  loss, grads, hprev, cprev = lossFun(inputs, targets, hprev)
+  loss, grads, hprev, cprev = lossFun(inputs, targets, hprev, cprev)
   smooth_loss = smooth_loss * 0.999 + loss * 0.001
   if n % 1000 == 0: print('iter %d, loss: %f' % (n, smooth_loss)) # print progress
   
