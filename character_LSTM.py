@@ -105,6 +105,8 @@ Who = np.random.randn(hidden_size,hidden_size) # hidden to output
 Why = np.random.randn(vocab_size, hidden_size)*0.01 # hidden to output
 by = np.zeros((vocab_size, 1)) # output bias
 
+params = [Wxc,Wxu,Wxf,Wxo,Whc,Whu,Whf,Who,dbc,dbu,dbf,dbo,dWhy,dby]
+
 def lossFun(inputs, targets, hprev, cprev):
   """
   inputs,targets are both list of integers.
@@ -198,10 +200,11 @@ def lossFun(inputs, targets, hprev, cprev):
     # four contributions to dhnext,one from each gate
     dhnext = np.dot(Whc.T,dzc) + np.dot(Whu.T,dzu) + np.dot(Whf.T,dzf) + np.dot(Who.T,dzo)
 
-  
-  for dparam in [dWxh, dWhh, dWhy, dbh, dby]:
+  grads = [dWxc,dWxu,dWxf,dWxo,dWhc,dWhu,dWhf,dWho,dbc,dbu,dbf,dbo,dWhy,dby]
+
+  for dparam in grads:
     np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
-  return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1]
+  return loss, grads, hs[len(inputs)-1], cs[len(inputs)-1]
 
 def sample(h, seed_ix, n):
   """ 
@@ -222,13 +225,25 @@ def sample(h, seed_ix, n):
   return ixes
 
 n, p = 0, 0
-mWxh, mWhh, mWhy = np.zeros_like(Wxh), np.zeros_like(Whh), np.zeros_like(Why)
-mbh, mby = np.zeros_like(bh), np.zeros_like(by) # memory variables for Adagrad
+
+# memory variables for Adagrad
+
+mWxc,mWxu,mWxf,mWxo = np.zeros_like(Wxc), np.zeros_like(Wxu), np.zeros_like(Wxf), np.zeros_like(Wxo)
+mbc,mbu,mbf,mbo = np.zeros_lie(bc), np.zeros_lie(bu), np.zeros_like(bf), np.zeros_like(bo)
+mWhc,mWhu,mWhf,mWho = np.zeros_like(Whc), np.zeros_like(Whu), np.zeros_like(Whf), np.zeros_like(Who)
+mWhy = np.zeros_like(Why)
+mby = np.zeros_like(by)
+
+mems=[mWxc,mWxu,mWxf,mWxo,mWhc,mWhu,mWhf,mWho,mbc,mbu,mbf,mbo,mWhy,mby]
+
 smooth_loss = -np.log(1.0/vocab_size)*seq_length # loss at iteration 0
+
 while n<1e6:
   # prepare inputs (we're sweeping from left to right in steps seq_length long)
   if p+seq_length+1 >= len(data) or n == 0: 
     hprev = np.zeros((hidden_size,1)) # reset RNN memory
+    cprev = np.zeros((hidden_size,1)) 
+
     p = 0 # go from start of data
   inputs = [char_to_ix[ch] for ch in data[p:p+seq_length]]
   targets = [char_to_ix[ch] for ch in data[p+1:p+seq_length+1]]
@@ -240,14 +255,14 @@ while n<1e6:
     print('----\n %s \n----' % (txt, ))
 
   # forward seq_length characters through the net and fetch gradient
-  loss, dWxh, dWhh, dWhy, dbh, dby, hprev = lossFun(inputs, targets, hprev)
+  loss, grads, hprev, cprev = lossFun(inputs, targets, hprev)
   smooth_loss = smooth_loss * 0.999 + loss * 0.001
   if n % 1000 == 0: print('iter %d, loss: %f' % (n, smooth_loss)) # print progress
   
   # perform parameter update with Adagrad
-  for param, dparam, mem in zip([Wxh, Whh, Why, bh, by], 
-                                [dWxh, dWhh, dWhy, dbh, dby], 
-                                [mWxh, mWhh, mWhy, mbh, mby]):
+  for param, dparam, mem in zip(params, 
+                                grads, 
+                                mems):
     mem += dparam * dparam
     param += -learning_rate * dparam / np.sqrt(mem + 1e-8) # adagrad update
 
