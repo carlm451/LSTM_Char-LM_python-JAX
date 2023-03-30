@@ -97,10 +97,10 @@ bu = np.zeros((hidden_size, 1)) # forget bias
 bf = np.zeros((hidden_size, 1)) # update bias
 bo = np.zeros((hidden_size, 1)) # output bias
 
-Whc = np.random.randn(hidden_size,hidden_size) # hidden to cell
-Whu = np.random.randn(hidden_size,hidden_size) # hidden to update
-Whf = np.random.randn(hidden_size,hidden_size) # hidden to forget
-Who = np.random.randn(hidden_size,hidden_size) # hidden to output
+Whc = np.random.randn(hidden_size,hidden_size)*0.01 # hidden to cell
+Whu = np.random.randn(hidden_size,hidden_size)*0.01 # hidden to update
+Whf = np.random.randn(hidden_size,hidden_size)*0.01 # hidden to forget
+Who = np.random.randn(hidden_size,hidden_size)*0.01 # hidden to output
 
 Why = np.random.randn(vocab_size, hidden_size)*0.01 # hidden to output
 by = np.zeros((vocab_size, 1)) # output bias
@@ -135,9 +135,9 @@ def lossFun(inputs, targets, hprev, cprev):
 
     c_tildes[t] = np.tanh(zc) # canidate for new c state
 
-    gamma_us[t] = np.sigmoid(zu)
-    gamma_fs[t] = np.sigmoid(zf)
-    gamma_os[t] = np.sigmoid(zo)
+    gamma_us[t] = sigmoid(zu)
+    gamma_fs[t] = sigmoid(zf)
+    gamma_os[t] = sigmoid(zo)
 
     cs[t] = np.multiply(c_tildes[t],gamma_us[t]) + np.multiply(cs[t-1],gamma_fs[t])
 
@@ -166,9 +166,9 @@ def lossFun(inputs, targets, hprev, cprev):
 
     dh = np.dot(Why.T, dy) + dhnext # backprop into h
     
-    dc = np.dot(gamma_os[t],dh) + dcnext #backprop into c 
+    dc = np.multiply(gamma_os[t],dh) + dcnext #backprop into c 
 
-    dcnext = np.dot(gamma_fs[t],dc)
+    dcnext = np.multiply(gamma_fs[t],dc)
 
     dzc = np.multiply((1-c_tildes[t]**2),np.multiply(gamma_us[t],dc))  # backprop through tanh
 
@@ -251,7 +251,7 @@ mems=[mWxc,mWxu,mWxf,mWxo,mWhc,mWhu,mWhf,mWho,mbc,mbu,mbf,mbo,mWhy,mby]
 
 smooth_loss = -np.log(1.0/vocab_size)*seq_length # loss at iteration 0
 
-while n<1e6:
+while n<10001:
   # prepare inputs (we're sweeping from left to right in steps seq_length long)
   if p+seq_length+1 >= len(data) or n == 0: 
     hprev = np.zeros((hidden_size,1)) # reset RNN memory
@@ -270,7 +270,7 @@ while n<1e6:
   # forward seq_length characters through the net and fetch gradient
   loss, grads, hprev, cprev = lossFun(inputs, targets, hprev, cprev)
   smooth_loss = smooth_loss * 0.999 + loss * 0.001
-  if n % 1000 == 0: print('iter %d, loss: %f' % (n, smooth_loss)) # print progress
+  if n % 1000 == 0: print('iter %d, loss: %f smooth_loss: %f' % (n, loss,smooth_loss)) # print progress
   
   # perform parameter update with Adagrad
   for param, dparam, mem in zip(params, 
