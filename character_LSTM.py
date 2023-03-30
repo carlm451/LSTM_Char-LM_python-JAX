@@ -60,6 +60,8 @@ data = data[e1+30:s2-30]
 
 data = data.replace('\n',' ')
 
+data = data.lower()  # try with lower case, see if training goes bit faster?
+
 print("Text data ready to process...")
 
 chars = list(set(data))
@@ -119,6 +121,8 @@ def lossFun(inputs, targets, hprev, cprev):
 
   ys, ps = {}, {}
 
+  cprev = np.zeros_like(cprev)
+
   hs[-1] = np.copy(hprev)
   cs[-1] = np.copy(cprev)
   
@@ -139,13 +143,19 @@ def lossFun(inputs, targets, hprev, cprev):
     gamma_fs[t] = sigmoid(zf)
     gamma_os[t] = sigmoid(zo)
 
-    cs[t] = np.multiply(c_tildes[t],gamma_us[t]) + np.multiply(cs[t-1],gamma_fs[t])
+    cs[t] = np.tanh(np.multiply(c_tildes[t],gamma_us[t]) + np.multiply(cs[t-1],gamma_fs[t]))  # tanh here is import!!!
 
     hs[t] = np.multiply(cs[t],gamma_os[t]) # hidden state
     
     ys[t] = np.dot(Why, hs[t]) + by # unnormalized log probabilities for next chars
     
     ps[t] = np.exp(ys[t]) / np.sum(np.exp(ys[t])) # probabilities for next chars
+
+    if np.any(ps[t] < 1e-100):
+        print('ys: ',np.amax(ys[t]),np.amin(ys[t]))
+        print('hs: ',np.amax(hs[t]),np.amin(hs[t]))
+        print('cs: ',np.axmax(cs[t]),np.amin(cs[t]))
+        raise Exception("bad probabilities")
 
     loss += -np.log(ps[t][targets[t],0]) # softmax (cross-entropy loss)
   # backward pass: compute gradients going backwards
@@ -166,7 +176,7 @@ def lossFun(inputs, targets, hprev, cprev):
 
     dh = np.dot(Why.T, dy) + dhnext # backprop into h
     
-    dc = np.multiply(gamma_os[t],dh) + dcnext #backprop into c 
+    dc = np.multiply((1-cs[t]**2),np.multiply(gamma_os[t],dh) + dcnext) #backprop into c 
 
     dcnext = np.multiply(gamma_fs[t],dc)
 
@@ -223,7 +233,7 @@ def sample(h, c, seed_ix, n):
     gamma_f = sigmoid(zf)
     gamma_o = sigmoid(zo)
 
-    c = np.multiply(c_tilde,gamma_u) + np.multiply(c,gamma_f)
+    c = np.tanh(np.multiply(c_tilde,gamma_u) + np.multiply(c,gamma_f))
 
     h = np.multiply(c,gamma_o) # hidden state
 
@@ -251,7 +261,7 @@ mems=[mWxc,mWxu,mWxf,mWxo,mWhc,mWhu,mWhf,mWho,mbc,mbu,mbf,mbo,mWhy,mby]
 
 smooth_loss = -np.log(1.0/vocab_size)*seq_length # loss at iteration 0
 
-while n<10001:
+while n<5e5:
   # prepare inputs (we're sweeping from left to right in steps seq_length long)
   if p+seq_length+1 >= len(data) or n == 0: 
     hprev = np.zeros((hidden_size,1)) # reset RNN memory
