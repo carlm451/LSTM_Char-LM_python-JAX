@@ -105,7 +105,7 @@ Who = np.random.randn(hidden_size,hidden_size) # hidden to output
 Why = np.random.randn(vocab_size, hidden_size)*0.01 # hidden to output
 by = np.zeros((vocab_size, 1)) # output bias
 
-params = [Wxc,Wxu,Wxf,Wxo,Whc,Whu,Whf,Who,dbc,dbu,dbf,dbo,dWhy,dby]
+params = [Wxc,Wxu,Wxf,Wxo,Whc,Whu,Whf,Who,bc,bu,bf,bo,Why,by]
 
 def lossFun(inputs, targets, hprev, cprev):
   """
@@ -133,7 +133,7 @@ def lossFun(inputs, targets, hprev, cprev):
     zf = np.dot(Wxf,xs[t]) + np.dot(Whf,hs[t-1]) + bf  # linear activation for forget gate
     zo = np.dot(Wxo,xs[t]) + np.dot(Who,hs[t-1]) + bo  # linear activation for output gate
 
-    c_tildes[t] = np.tanh(zc)
+    c_tildes[t] = np.tanh(zc) # canidate for new c state
 
     gamma_us[t] = np.sigmoid(zu)
     gamma_fs[t] = np.sigmoid(zf)
@@ -151,16 +151,12 @@ def lossFun(inputs, targets, hprev, cprev):
   # backward pass: compute gradients going backwards
   
   dWxc,dWxu,dWxf,dWxo = np.zeros_like(Wxc), np.zeros_like(Wxu), np.zeros_like(Wxf), np.zeros_like(Wxo)
-
-  dbc,dbu,dbf,dbo = np.zeros_lie(bc), np.zeros_lie(bu), np.zeros_like(bf), np.zeros_like(bo)
-
   dWhc,dWhu,dWhf,dWho = np.zeros_like(Whc), np.zeros_like(Whu), np.zeros_like(Whf), np.zeros_like(Who)
-
-  dWhy = np.zeros_like(Why)
-  dby = np.zeros_like(by)
+  dbc,dbu,dbf,dbo = np.zeros_like(bc), np.zeros_like(bu), np.zeros_like(bf), np.zeros_like(bo)
+  dWhy,dby = np.zeros_like(Why), np.zeros_like(by)
   
-  dhnext = np.zeros_like(hs[0])
-  dcnext = np.zeros_like(cs[0])
+  dhnext, dcnext = np.zeros_like(hs[0]), np.zeros_like(cs[0])
+
   for t in reversed(range(len(inputs))):
     dy = np.copy(ps[t])
     dy[targets[t]] -= 1 # backprop into y. see http://cs231n.github.io/neural-networks-case-study/#grad if confused here
@@ -223,9 +219,9 @@ def sample(h, c, seed_ix, n):
       
     c_tilde = np.tanh(zc)
 
-    gamma_u = np.sigmoid(zu)
-    gamma_f = np.sigmoid(zf)
-    gamma_o = np.sigmoid(zo)
+    gamma_u = sigmoid(zu)
+    gamma_f = sigmoid(zf)
+    gamma_o = sigmoid(zo)
 
     c = np.multiply(c_tilde,gamma_u) + np.multiply(c,gamma_f)
 
@@ -239,15 +235,17 @@ def sample(h, c, seed_ix, n):
     ixes.append(ix)
   return ixes
 
+def sigmoid(z):
+    return 1.0/(1.0 + np.exp(-z))
+
 n, p = 0, 0
 
 # memory variables for Adagrad
 
 mWxc,mWxu,mWxf,mWxo = np.zeros_like(Wxc), np.zeros_like(Wxu), np.zeros_like(Wxf), np.zeros_like(Wxo)
-mbc,mbu,mbf,mbo = np.zeros_lie(bc), np.zeros_lie(bu), np.zeros_like(bf), np.zeros_like(bo)
 mWhc,mWhu,mWhf,mWho = np.zeros_like(Whc), np.zeros_like(Whu), np.zeros_like(Whf), np.zeros_like(Who)
-mWhy = np.zeros_like(Why)
-mby = np.zeros_like(by)
+mbc,mbu,mbf,mbo = np.zeros_like(bc), np.zeros_like(bu), np.zeros_like(bf), np.zeros_like(bo)
+mWhy,mby = np.zeros_like(Why), np.zeros_like(by)
 
 mems=[mWxc,mWxu,mWxf,mWxo,mWhc,mWhu,mWhf,mWho,mbc,mbu,mbf,mbo,mWhy,mby]
 
@@ -265,9 +263,9 @@ while n<1e6:
 
   # sample from the model now and then
   if n % 5000 == 0:
-    sample_ix = sample(hprev, inputs[0], 200)
+    sample_ix = sample(hprev,cprev, inputs[0], 200)
     txt = ''.join(ix_to_char[ix] for ix in sample_ix)
-    print('----\n %s \n----' % (txt, ))
+    print('----\n %s \n----' % (txt,))
 
   # forward seq_length characters through the net and fetch gradient
   loss, grads, hprev, cprev = lossFun(inputs, targets, hprev, cprev)
