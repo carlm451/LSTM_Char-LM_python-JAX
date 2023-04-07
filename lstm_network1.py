@@ -49,7 +49,7 @@ class LSTM(object):
 
         self.mems = mems
 
-    def stochastic_gradient_descent(self,training_data,mini_batch_size,learning_rate):
+    def stochastic_gradient_descent(self,training_data,mini_batch_size=10,learning_rate=0.05):
 
         # training data is preprocessed string with entire text file for training
 
@@ -69,6 +69,9 @@ class LSTM(object):
 
         self.losses.append(smooth_loss)
     
+        self.losses2 = []
+        self.losses2.append(smooth_loss)
+
         self.char_to_ix = { ch:i for i,ch in enumerate(chars) }
         self.ix_to_char = { i:ch for i,ch in enumerate(chars) }
         
@@ -78,7 +81,7 @@ class LSTM(object):
 
         current_loss = 0
 
-        while n < 10000:
+        while n < 1e6:
 
             inputs,targets = next(batch_generator)
 
@@ -86,15 +89,24 @@ class LSTM(object):
 
             smooth_loss = smooth_loss*0.999 + current_loss*0.001
 
-            if n%500==0:
+            # sample from the model now and then
+            if n % 10000 == 0:
+                sample_ix = self.sample(self.hprev,self.cprev, np.random.randint(self.vocab_size), 9)
+                txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
+                print('----\n %s \n----' % (txt,))
+
+            if n%10000==0:
                 print(f'Loss: {smooth_loss:.4f}\tRelative: {100*smooth_loss/smooth_loss_start:.4f}')
 
             self.losses.append(smooth_loss)
+            self.losses2.append(current_loss)
 
             n+=1
 
     def get_mini_batch(self,data,mini_batch_size):
-
+        '''
+        generator to continuous loop the data and pull out mini batches
+        '''
         p = 0
 
         batch_character_size = mini_batch_size*(self.seq_length)
@@ -285,6 +297,59 @@ class LSTM(object):
 
         return loss
 
+    def sample(self,h, c, seed_ix, n):
+        """
+        sample a sequence of integers from the model
+        h is memory state, seed_ix is seed letter for first time step
+        """
+        
+        Wxc = self.params['Wxc']
+        Wxu = self.params['Wxu']
+        Wxf = self.params['Wxf']
+        Wxo = self.params['Wxo']
+
+        Whc = self.params['Whc']
+        Whu = self.params['Whu']
+        Whf = self.params['Whf']
+        Who = self.params['Who']
+
+        bc = self.params['bc']
+        bu = self.params['bu']
+        bf = self.params['bf']
+        bo = self.params['bo']
+
+        Why = self.params['Why']
+        by = self.params['by']
+
+        x = np.zeros((self.vocab_size, 1))
+        x[seed_ix] = 1
+        ixes = []
+        for t in range(n):
+
+            zc = np.dot(Wxc,x) + np.dot(Whc,h) + bc  # linear activation for candidate cell state C~
+            zu = np.dot(Wxu,x) + np.dot(Whu,h) + bu  # linear activation for update gate
+            zf = np.dot(Wxf,x) + np.dot(Whf,h) + bf  # linear activation for forget gate
+            zo = np.dot(Wxo,x) + np.dot(Who,h) + bo  # linear activation for output gate
+
+            c_tilde = np.tanh(zc)
+
+            gamma_u = sigmoid(zu)
+            gamma_f = sigmoid(zf)
+            gamma_o = sigmoid(zo)
+
+            c = np.tanh(np.multiply(c_tilde,gamma_u) + np.multiply(c,gamma_f))
+
+            h = np.multiply(c,gamma_o) # hidden state
+
+            y = np.dot(Why, h) + by
+            p = np.exp(y) / np.sum(np.exp(y))
+            ix = np.random.choice(range(self.vocab_size), p=p.ravel())
+            x = np.zeros((self.vocab_size, 1))
+            x[ix] = 1
+            ixes.append(ix)
+        
+        return ixes
+
 def sigmoid(z):
     return 1.0/(1.0 + np.exp(-z))
 
@@ -292,7 +357,7 @@ if __name__ == '__main__':
 
     seq_length = 3
 
-    hidden_size = 12
+    hidden_size = 20
 
     lstm = LSTM(seq_length,hidden_size)
 
@@ -305,4 +370,4 @@ if __name__ == '__main__':
     print('Toy training data: ',training_data[:26*3])
     print('\n\n\n')
 
-    lstm.stochastic_gradient_descent(training_data=training_data,mini_batch_size=7,learning_rate=0.005)
+    lstm.stochastic_gradient_descent(training_data=training_data)
