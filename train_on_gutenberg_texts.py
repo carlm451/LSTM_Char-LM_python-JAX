@@ -54,9 +54,9 @@ def main():
     if not proceed:
         exit()
 
-    seq_length = 20
+    seq_length = 30
 
-    hidden_size = 50
+    hidden_size = 25
 
     lstm = network.LSTM(seq_length,hidden_size)
 
@@ -79,7 +79,7 @@ def main():
     print('\n'.join(wrap_list))
     print('-'*100)
 
-    lstm.stochastic_gradient_descent(training_data=training_data)
+    lstm.stochastic_gradient_descent(training_data=data)
 
 if __name__ == '__main__':
 
