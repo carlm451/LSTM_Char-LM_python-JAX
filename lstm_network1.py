@@ -65,6 +65,8 @@ class LSTM(object):
 
         smooth_loss = -np.log(1.0/self.vocab_size)*self.seq_length
 
+        smooth_loss_start = smooth_loss
+
         self.losses.append(smooth_loss)
     
         self.char_to_ix = { ch:i for i,ch in enumerate(chars) }
@@ -76,13 +78,16 @@ class LSTM(object):
 
         current_loss = 0
 
-        while n < 2:
+        while n < 10000:
 
             inputs,targets = next(batch_generator)
 
             current_loss = self.sgd_step(inputs,targets,mini_batch_size,learning_rate)
 
             smooth_loss = smooth_loss*0.999 + current_loss*0.001
+
+            if n%500==0:
+                print(f'Loss: {smooth_loss:.4f}\tRelative: {100*smooth_loss/smooth_loss_start:.4f}')
 
             self.losses.append(smooth_loss)
 
@@ -94,7 +99,13 @@ class LSTM(object):
 
         batch_character_size = mini_batch_size*(self.seq_length)
 
-        while (p+batch_character_size+1)<len(data):
+        while True:
+
+            if p+batch_character_size+1>=len(data):
+                p=0
+
+                self.hprev = np.zeros((self.hidden_size,1))
+                self.cprve = np.zeros((self.hidden_size,1))
 
             inputs,targets = [],[]
 
@@ -104,8 +115,6 @@ class LSTM(object):
                 targets.append([self.char_to_ix[ch] for ch in data[p+1:p+self.seq_length+1]])
 
                 p += self.seq_length
-
-            print(p)
 
             yield inputs,targets
 
@@ -135,6 +144,9 @@ class LSTM(object):
         bf = self.params['bf']
         bo = self.params['bo']
 
+        Why = self.params['Why']
+        by = self.params['by']
+
         # caches for forward pass
 
         xs, hs, cs, c_tildes = {}, {}, {}, {}
@@ -149,8 +161,8 @@ class LSTM(object):
         assert(inputs.shape==(mini_batch_size,self.seq_length))
         assert(targets.shape==(mini_batch_size,self.seq_length))
 
-        hs[-1] = self.hprev
-        cs[-1] = self.cprev
+        hs[-1] = np.tile(self.hprev,(1,mini_batch_size))
+        cs[-1] = np.tile(self.cprev,(1,mini_batch_size))
 
         loss = 0
         
@@ -176,9 +188,9 @@ class LSTM(object):
 
             ys[t] = np.dot(Why, hs[t]) + by # unnormalized log probabilities for next chars
 
-            ps[t] = np.exp(ys[t]) / np.sum(np.exp(ys[t])) # probabilities for next chars
+            ps[t] = np.exp(ys[t]) / np.sum(np.exp(ys[t]),axis=0) # probabilities for next chars
 
-            loss += -np.log(ps[t][targets[:,t],np.arange(mini_batch_size)])   #  ps[t] should be shape (vocab_size,mini_batch_size)
+            loss += -np.mean(np.log(ps[t][targets[:,t],np.arange(mini_batch_size)]))   #  ps[t] should be shape (vocab_size,mini_batch_size)
     
         #initialize gradients to zero
 
@@ -192,12 +204,13 @@ class LSTM(object):
 
         #backward pass
         
-        for t in reversed(range(len(inputs))):
+        for t in reversed(range(self.seq_length)):
             dy = np.copy(ps[t])
-            dy[targets[:,t],np.arange(mini_batch_size)] -= 1 # backprop into y
 
+            dy[targets[:,t],np.arange(mini_batch_size)] -= 1 # backprop into y
+    
             dWhy += np.dot(dy, hs[t].T)
-            dby += dy
+            dby += np.sum(dy,axis=1,keepdims=True)
 
             dh = np.dot(Why.T, dy) + dhnext # backprop into h
 
@@ -213,10 +226,10 @@ class LSTM(object):
 
             dzo = np.multiply(gamma_os[t]*(1-gamma_os[t]),np.multiply(cs[t],dh))
 
-            dbc += dzc
-            dbu += dzu
-            dbf += dzf
-            dbo += dzo
+            dbc += np.sum(dzc,axis=1,keepdims=True)
+            dbu += np.sum(dzu,axis=1,keepdims=True)
+            dbf += np.sum(dzf,axis=1,keepdims=True)
+            dbo += np.sum(dzo,axis=1,keepdims=True)
 
             dWhc += np.dot(dzc,hs[t-1].T)
             dWhu += np.dot(dzu,hs[t-1].T)
@@ -249,15 +262,15 @@ class LSTM(object):
         grads['bo']=dbo
 
         grads['Why']=dWhy
-        grads['dby']=dby
+        grads['by']=dby
 
         for parameter in grads.keys():
             np.clip(grads[parameter], -5, 5, out=grads[parameter]) # clip to mitigate exploding gradients
 
         self.grads=grads
 
-        self.hprev = hs[self.seq_length-1]
-        self.cprev = cs[self.seq_length-1]
+        self.hprev = np.mean(hs[self.seq_length-1],axis=1,keepdims=True)
+        self.cprev = np.mean(cs[self.seq_length-1],axis=1,keepdims=True)
 
         # perform parameter update with Adagrad
         for parameter in self.params.keys():
@@ -268,25 +281,28 @@ class LSTM(object):
 
             mem = self.mems[parameter]
             
-            self.params[parameter] += -learning_rate * dparam / np.sqrt(mem + 1e-8) # adagrad update
+            self.params[parameter] += -learning_rate * dparam / (mini_batch_size * np.sqrt(mem + 1e-8)) # adagrad update
 
         return loss
 
+def sigmoid(z):
+    return 1.0/(1.0 + np.exp(-z))
 
 if __name__ == '__main__':
 
     seq_length = 3
 
-    hidden_size = 10
+    hidden_size = 12
 
     lstm = LSTM(seq_length,hidden_size)
 
-    print(type(lstm),lstm.seq_length,lstm.hidden_size)
+    print(f'LSTM with {lstm.hidden_size} hidden units')
+    print(f'Will train on character sequences of length {lstm.seq_length}')
+    print('\n\n\n')
 
-    training_data = 'abcdefghijklmnopqrstuvwxyz'*10
+    training_data = 'abcdefghijklmnopqrstuvwxyz'*500
 
-    lstm.stochastic_gradient_descent(training_data=training_data,mini_batch_size=2,learning_rate=0.001)
+    print('Toy training data: ',training_data[:26*3])
+    print('\n\n\n')
 
-    print(lstm.params['Wxc'].shape,lstm.mems['Wxc'].shape)
-
-    print(lstm.params.keys())
+    lstm.stochastic_gradient_descent(training_data=training_data,mini_batch_size=7,learning_rate=0.005)
