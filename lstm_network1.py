@@ -49,7 +49,7 @@ class LSTM(object):
 
         self.mems = mems
 
-    def stochastic_gradient_descent(self,training_data,mini_batch_size=10,learning_rate=0.05):
+    def stochastic_gradient_descent(self,training_data,mini_batch_size=10,learning_rate=0.03):
 
         # training data is preprocessed string with entire text file for training
 
@@ -90,12 +90,12 @@ class LSTM(object):
             smooth_loss = smooth_loss*0.999 + current_loss*0.001
 
             # sample from the model now and then
-            if n % 10000 == 0:
-                sample_ix = self.sample(self.hprev,self.cprev, np.random.randint(self.vocab_size), 9)
+            if n % 5000 == 0:
+                sample_ix = self.sample(self.hprev,self.cprev, np.random.randint(self.vocab_size), 20)
                 txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
                 print('----\n %s \n----' % (txt,))
 
-            if n%10000==0:
+            if n%5000==0:
                 print(f'Loss: {smooth_loss:.4f}\tRelative: {100*smooth_loss/smooth_loss_start:.4f}')
 
             self.losses.append(smooth_loss)
