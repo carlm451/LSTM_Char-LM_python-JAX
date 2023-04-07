@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from textwrap import wrap
+
 class LSTM(object):
     
     def __init__(self,seq_length,hidden_size):
@@ -91,8 +93,15 @@ class LSTM(object):
 
             # sample from the model now and then
             if n % 5000 == 0:
-                sample_ix = self.sample(self.hprev,self.cprev, np.random.randint(self.vocab_size), 20)
+                sample_ix = self.sample(self.hprev,self.cprev, np.random.randint(self.vocab_size), 200)
                 txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
+                
+                txt_wrap = wrap(txt,80)
+
+                txt_wrap = [line.center(100) for line in txt_wrap]
+
+                txt = '\n'.join(txt_wrap)  # \n aren't in the character set so wrap text to make readable
+
                 print('----\n %s \n----' % (txt,))
 
             if n%5000==0:
@@ -355,7 +364,7 @@ def sigmoid(z):
 
 if __name__ == '__main__':
 
-    seq_length = 3
+    seq_length = 10
 
     hidden_size = 20
 
