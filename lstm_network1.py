@@ -44,12 +44,20 @@ class LSTM(object):
         grad_mems = dict()
         sqrd_mems = dict()
 
+        param_count = 0
+
         for parameter in self.params.keys():
             
             shape = params[parameter].shape
 
+            param_count += params[parameter].size
+
             grad_mems[parameter] = np.zeros(shape)
             sqrd_mems[parameter] = np.zeros(shape)
+
+        print()
+        print(f"Initialized LSTM with {param_count} parameters".center(100))
+        print()
 
         self.grad_mems = grad_mems
         self.sqrd_mems = sqrd_mems
