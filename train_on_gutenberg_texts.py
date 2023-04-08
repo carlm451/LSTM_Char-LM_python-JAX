@@ -54,9 +54,13 @@ def main():
     if not proceed:
         exit()
 
-    seq_length = 60
+    #seq_length = 60
+    seq_length = 30
 
     hidden_size = 256
+    #hidden_size = 128
+    #hidden_size = 64
+
 
     lstm = network.LSTM(seq_length,hidden_size)
 
@@ -79,7 +83,7 @@ def main():
     print('\n'.join(wrap_list))
     print('-'*100)
 
-    lstm.stochastic_gradient_descent(training_data=data,mini_batch_size = 30,learning_rate=0.3)
+    lstm.stochastic_gradient_descent(training_data=data,mini_batch_size = 30,learning_rate=0.05)
 
 if __name__ == '__main__':
 
