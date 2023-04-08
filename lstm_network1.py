@@ -41,17 +41,25 @@ class LSTM(object):
 
         self.params = params
 
-        mems = dict()
+        grad_mems = dict()
+        sqrd_mems = dict()
 
         for parameter in self.params.keys():
             
             shape = params[parameter].shape
 
-            mems[parameter] = np.zeros(shape)
+            grad_mems[parameter] = np.zeros(shape)
+            sqrd_mems[parameter] = np.zeros(shape)
 
-        self.mems = mems
+        self.grad_mems = grad_mems
+        self.sqrd_mems = sqrd_mems
 
-    def stochastic_gradient_descent(self,training_data,mini_batch_size=15,learning_rate=0.05):
+    def stochastic_gradient_descent(self,
+                                    training_data,
+                                    mini_batch_size=15,
+                                    beta1=0.9,
+                                    beta2=0.999,
+                                    learning_rate=0.05):
 
         # training data is preprocessed string with entire text file for training
 
@@ -77,22 +85,22 @@ class LSTM(object):
         self.char_to_ix = { ch:i for i,ch in enumerate(chars) }
         self.ix_to_char = { i:ch for i,ch in enumerate(chars) }
         
-        n=0
+        self.n=0
 
         batch_generator = self.get_mini_batch(training_data,mini_batch_size)
 
         current_loss = 0
 
-        while n < 1e6:
+        while self.n < 1e5:
 
             inputs,targets = next(batch_generator)
 
-            current_loss = self.sgd_step(inputs,targets,mini_batch_size,learning_rate)
+            current_loss = self.sgd_step(inputs,targets,mini_batch_size,beta1,beta2,learning_rate)
 
             smooth_loss = smooth_loss*0.999 + current_loss*0.001
 
             # sample from the model now and then
-            if n % 1000 == 0:
+            if self.n % 1000 == 0:
                 sample_ix = self.sample(self.hprev,self.cprev, np.random.randint(self.vocab_size), 200)
                 txt = ''.join(self.ix_to_char[ix] for ix in sample_ix)
                 
@@ -104,13 +112,13 @@ class LSTM(object):
 
                 print('----\n %s \n----' % (txt,))
 
-            if n%1000==0:
+            if self.n%1000==0:
                 print(f'Loss: {smooth_loss:.4f}\tRelative: {100*smooth_loss/smooth_loss_start:.4f}')
 
             self.losses.append(smooth_loss)
             self.losses2.append(current_loss)
 
-            n+=1
+            self.n+=1
 
     def get_mini_batch(self,data,mini_batch_size):
         '''
@@ -139,7 +147,7 @@ class LSTM(object):
 
             yield inputs,targets
 
-    def sgd_step(self,inputs,targets,mini_batch_size,learning_rate):
+    def sgd_step(self,inputs,targets,mini_batch_size,beta1,beta2,learning_rate):
         '''
         Forward pass, backward pass, and gradient update for single minibatch of fixed length sequences
         and target sequences
@@ -296,13 +304,16 @@ class LSTM(object):
         # perform parameter update with Adagrad
         for parameter in self.params.keys():
             
-            dparam = self.grads[parameter]
+            dparam = self.grads[parameter] / mini_batch_size
 
-            self.mems[parameter] += dparam * dparam
+            self.grad_mems[parameter] = beta1*self.grad_mems[parameter] + (1-beta1)*dparam
 
-            mem = self.mems[parameter]
+            self.sqrd_mems[parameter] = beta2*self.sqrd_mems[parameter] + (1-beta2)*dparam*dparam
+
+            grad_hat = self.grad_mems[parameter] / (1-beta1**(self.n+1))
+            sqrd_hat = self.sqrd_mems[parameter] / (1-beta2**(self.n+1))
             
-            self.params[parameter] += -learning_rate * dparam / (mini_batch_size * np.sqrt(mem + 1e-8)) # adagrad update
+            self.params[parameter] += -learning_rate * grad_hat / (np.sqrt(sqrd_hat + 1e-8)) # ADAM update
 
         return loss
 
