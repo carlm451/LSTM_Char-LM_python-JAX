@@ -54,9 +54,9 @@ def main():
     if not proceed:
         exit()
 
-    seq_length = 30
+    seq_length = 60
 
-    hidden_size = 100
+    hidden_size = 256
 
     lstm = network.LSTM(seq_length,hidden_size)
 
