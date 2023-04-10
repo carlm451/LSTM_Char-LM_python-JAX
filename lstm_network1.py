@@ -142,7 +142,7 @@ class LSTM(object):
                 p=0
 
                 self.hprev = np.zeros((self.hidden_size,1))
-                self.cprve = np.zeros((self.hidden_size,1))
+                self.cprev = np.zeros((self.hidden_size,1))
 
             inputs,targets = [],[]
 
