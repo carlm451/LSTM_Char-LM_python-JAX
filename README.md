@@ -36,5 +36,9 @@ Contents:
 
 * Notebook3_LSTM_Training_LargeTextCorpus - testing on a much larger test corpus to compare performance and results 
 
+LSTM Equations and Backpropagation Graph
+
+![BPTT for LSTM](LSTM_backprop_graph.pdf)
+
 
 
