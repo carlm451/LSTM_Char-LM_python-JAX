@@ -6,7 +6,7 @@
 
 This project contains python scripts and Colab notebooks for implementing and tuning a character-level, deep LSTM from scratch in python. 
 
-The recurrent learning algorithm is based on the minimal code example 'min-char-rnn.py' provided by Andrej Karpathy in his popular tutorial on RNNs, "The Unreasonable Effectiveness of Reccurent Neural Networks"  
+The recurrent learning algorithm is based on the minimal code example 'min-char-rnn.py' provided by Andrej Karpathy in his popular tutorial on RNNs, ![The Unreasonable Effectiveness of Reccurent Neural Networks](https://karpathy.github.io/2015/05/21/rnn-effectiveness/)  
 
 The minimal code sample for the RNN network is great for understanding the steps of the learning algorithm. Especially, seeing this code helped me better comprehend the steps needed to perform backpropgation through time. However, in order to see the high quality results discussed by Andrej in his blog and paper, the vanilla RNN script requires several extensions:
 
