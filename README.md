@@ -1,5 +1,7 @@
 # LSTM_Character_Language_Model
 
+![BPTT for LSTM](LSTM_backprop_graph.svg)
+
 ## Character-level Language Model using a deep LSTM from scratch with python/JAX
 
 This project contains python scripts and Colab notebooks for implementing and tuning a character-level, deep LSTM from scratch in python. 
@@ -36,9 +38,7 @@ Contents:
 
 * Notebook3_LSTM_Training_LargeTextCorpus - testing on a much larger test corpus to compare performance and results 
 
-LSTM Equations and Backpropagation Graph
 
-![BPTT for LSTM](LSTM_backprop_graph.svg)
 
 
 
