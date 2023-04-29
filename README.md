@@ -38,7 +38,7 @@ Contents:
 
 LSTM Equations and Backpropagation Graph
 
-![BPTT for LSTM](LSTM_backprop_graph.pdf)
+![BPTT for LSTM](LSTM_backprop_graph.svg)
 
 
 
