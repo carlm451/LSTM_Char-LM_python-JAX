@@ -1,25 +1,40 @@
 # LSTM_Character_Language_Model
-Character-level Long Short Term Memory Recurrent Neural Network implemented from scratch in Python
 
+## Character-level Language Model using a deep LSTM from scratch with python/JAX
 
-This repo contains various iterations of my work to implement a character level LSTM language model from the ground up all in python. 
+This project contains python scripts and Colab notebooks for implementing and tuning a character-level, deep LSTM from scratch in python. 
 
-The code here is an extenstion of the minimal level RNN python script 'min-char-rnn.py' written by Andrej Karpathy for his popular blog post explaining
-the fundamental mechanics of RNNs, "The Unreasonable Effectiveness of Recurrent Neural Networks"
+The recurrent learning algorithm is based on the minimal code example 'min-char-rnn.py' provided by Andrej Karpathy in his popular tutorial on RNNs, "The Unreasonable Effectiveness of Reccurent Neural Networks"  
 
-I wanted to understand the detailed workings of more elaborate versions of RNNS, where there are many more internal computations inside each unit and also where there
-are stacked RNNS to make a deep network, so I set out to extend the 'min-char-rnn.py' and see how many features I could implement from the ground up. 
+The minimal code sample for the RNN network is great for understanding the steps of the learning algorithm. Especially, seeing this code helped me better comprehend the steps needed to perform backpropgation through time. However, in order to see the high quality results discussed by Andrej in his blog and paper, the vanilla RNN script requires several extensions:
 
-Extensions to the min-char-rnn.py model:
+  1. replacing RNN with either LSTM or GRU circuits which implement gates to store memory over longer sequences
+ 
+  2. using deep networks with stacks of RNN units
+  
+  3. batch processing of samples
+  
+  4. using adaptive learning rate optimization like ADAM or RMSprop
+  
+  5. code that can run on a GPU to speed up computations
 
-* RNN --> LSTM ( new forward pass/new BPTT pass)
-* single layer --> custom number of layer num_layers
-* adagrad --> ADAM optimizer from scratch
-* sampling T=1 ---> sampling with temperature T if desired
-* and more! 
+To see the original torch/lua implementation by Andrej see here, and to see an updated version by __ see here.  
 
-as;dlkjadf ;
+I wanted to see how many of the above exstensions could be realised from scratch with just python, and not relying on any particular high level deep learning framework. LSTMs are a widely applied and core component for huge variety of higher level models, so I wanted to really understand from the bottom up how they work in detail. 
 
-need to work on this more...
+Contents: 
+
+* min-char-rnn.py - original minimal code for RNN algorithm in python by Andrej Karpathy 
+
+* lstm_network1.py - module for a single layer LSTM in python, bundling the various methods and weights inside an LSTM class.
+
+* deep_lstm_jax.py - module for multi-layer LSTM which replaces numpy with jax.fastmat and jit functions for GPU compatibility/speed up. This verision is written as python library of indepedent functions without any classes in order to make working with JAX , and JIT.  
+
+* Notebook1_RNN_vs_LSTM.ipynb - Colab notebook comparing the performance of the vanilla RNN code to the deep LSTM code
+
+* Notebook2_LSTM_Training_Illiad.ipynb
+
+* Notebook3_LSTM_Training_LargeTextCorpus - testing on a much larger test corpus to compare performance and results 
+
 
 
