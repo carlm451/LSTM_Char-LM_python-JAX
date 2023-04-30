@@ -1,6 +1,6 @@
 # LSTM_Character_Language_Model
 
-![BPTT for LSTM](LSTM_backprop_graph.svg)
+![BPTT for LSTM](readme_pics/LSTM_backprop_graph.svg)
 
 ## Character-level Language Model using a deep LSTM from scratch with python/JAX
 
