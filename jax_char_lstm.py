@@ -103,6 +103,23 @@ def initialize_dense_weights(key,n_h,n_x):
 
     return params, grad_mems, sqrd_mems
 
+def initialize_embedding_weights(key,d_embedding,vocab_size):
+
+    key,subkey=random.split(key)
+
+    params,grad_mems,sqrd_mems = dict(),dict(),dict()
+
+    params['Exe'] = random.normal(subkey,(d_embedding,vocab_size))*0.01 # hidden to output
+
+    for parameter in params.keys():
+
+        shape = params[parameter].shape
+
+        grad_mems[parameter]=jnp.zeros(shape)
+        sqrd_mems[parameter]=jnp.zeros(shape)
+
+    return params, grad_mems, sqrd_mems
+
 def get_mini_batch(mini_batch_size,seq_length,char_to_ix,data):
     '''
     Generator that continuously yields mini-batches of text sequences
@@ -180,6 +197,34 @@ def sigmoid(z):
 def softmax(y):
     #computes softmax probabilities over characters
     return jnp.exp(y) / jnp.sum(jnp.exp(y),axis=0)
+
+def embedding_forward(inputs,params):
+
+    # dims
+    mini_batch_size = inputs[0].shape[1]
+    seq_length = len(inputs) - 1
+    #print("SEQ LENGTH ",seq_length)
+
+    vocab_size = inputs[0].shape[0]
+
+    Exe = params['Exe']
+
+    assert(Exe.shape[1]==vocab_size)
+
+    d_embedding = Exe.shape[0]
+
+    es = {}
+
+    es[-1]=None
+
+    for t in range(seq_length):
+        x_batch = inputs[t]
+
+        e_batch = jnp.matmul(Exe,x_batch)
+
+        es[t] = e_batch
+
+    return es
 
 def lstm_forward(inputs,hprev,cprev,params):
     '''
@@ -467,6 +512,38 @@ def lstm_layer_backward(dh_next_layer,gates_cache,states_cache,params):
 
     return dh_previous_layer, grads
 
+def embedding_backward(dh_next_layer,inputs,params):
+
+    # dims
+    mini_batch_size = inputs[0].shape[1]
+    seq_length = len(inputs) - 1
+    #print("SEQ LENGTH ",seq_length)
+
+    vocab_size = inputs[0].shape[0]
+
+    Exe = params['Exe']
+
+    assert(Exe.shape[1]==vocab_size)
+
+    seq_length = len(dh_next_layer) #check this!
+
+    dExe=jnp.zeros_like(Exe)
+
+    for t in reversed(range(seq_length)):
+
+        x_batch = inputs[t]
+
+        dh = dh_next_layer[t] + dhnext # backprop into h
+
+        dExe += jnp.matmul(dh,x_batch.T)
+
+    grads['Exe']=dExe
+
+    for parameter in grads.keys():
+        grads[parameter] = jnp.clip(grads[parameter], -5, 5) # clip to mitigate exploding gradients
+        
+    return grads
+
 @jit  # decorator to jit compile the function for faster execution 
 def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_grads_mems,all_sqrd_mems,beta1,beta2,learning_rate):
     '''
@@ -516,7 +593,9 @@ def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_g
 
     layer_inputs = {}
 
-    layer_inputs[0] = encode_inputs(inputs,vocab_size)
+    inputs_onehot = encode_inputs(inputs,vocab)
+
+    layer_inputs[0] = embedding_forward(inputs_onehot,all_params[-1])
 
     s_cache_dict,g_cache_dict = {},{}
 
@@ -557,6 +636,8 @@ def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_g
 
         dh_cache_dict[l],all_grads_dict[l] = lstm_layer_backward(dh_cache_dict[l+1],g_cache_dict[l],s_cache_dict[l],all_params[l])
 
+    all_grads_dict[-1]=embedding_backward(dh_cache_dict[0],inputs_onehot,all_params[-1])
+
     new_all_params = deepcopy(all_params)
     new_all_grads_mems = deepcopy(all_grads_mems)
     new_all_sqrd_mems = deepcopy(all_sqrd_mems)
@@ -567,7 +648,7 @@ def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_g
 
     # dense layer = num_layers
 
-    for l in range(num_layers+1):
+    for l in range(-1,num_layers+1):
 
         # perform parameter update with ADAM 
         for parameter in new_all_params[l].keys():
@@ -807,10 +888,14 @@ def train_character_lstm(seq_length,
 
     h_inputs_val,c_inputs_val={},{} # start val network with blank states each time
 
+    key,subkey = random.split(key)
+    all_params[-1],all_grads[-1],all_sqrd[-1] = initialize_embbeding_weights(key,hidden_sizes[0],vocab_size)
+
     for l in range(num_layers):
 
         if l==0:
-           prev_layer_size = vocab_size
+            #prev_layer_size = vocab_size
+            prev_layer_size = hidden_sizes[0]
         elif l>0:
            prev_layer_size = hidden_sizes[l-1]
 
