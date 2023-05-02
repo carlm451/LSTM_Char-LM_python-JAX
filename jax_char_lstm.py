@@ -14,6 +14,8 @@ from textwrap import wrap
 
 from copy import deepcopy
 
+from functools import partial
+
 
 def initialize_lstm_weights(key,n_h,n_x):
     """
@@ -198,27 +200,25 @@ def softmax(y):
     #computes softmax probabilities over characters
     return jnp.exp(y) / jnp.sum(jnp.exp(y),axis=0)
 
-def embedding_forward(inputs,params):
+def embedding_forward(inputs_onehot,params):
 
     # dims
-    mini_batch_size = inputs[0].shape[1]
-    seq_length = len(inputs) - 1
+    mini_batch_size = inputs_onehot[0].shape[1]
+    seq_length = len(inputs_onehot) - 1
     #print("SEQ LENGTH ",seq_length)
 
-    vocab_size = inputs[0].shape[0]
+    vocab_size = inputs_onehot[0].shape[0]
 
     Exe = params['Exe']
 
-    assert(Exe.shape[1]==vocab_size)
-
-    d_embedding = Exe.shape[0]
+    print(f'{Exe.shape},{inputs_onehot[0].shape}!!!!!!!!!!!')
 
     es = {}
 
     es[-1]=None
 
     for t in range(seq_length):
-        x_batch = inputs[t]
+        x_batch = inputs_onehot[t]
 
         e_batch = jnp.matmul(Exe,x_batch)
 
@@ -252,7 +252,7 @@ def lstm_forward(inputs,hprev,cprev,params):
     seq_length = len(inputs) - 1
     #print("SEQ LENGTH ",seq_length)
 
-    vocab_size = params['Wxc'].shape[1]
+    #vocab_size = params['Wxc'].shape[1]
 
     # unpack params
     Wxc = params['Wxc']
@@ -366,7 +366,7 @@ def loss_backward(targets,probs_cache,final_hidden_states,dense_params):
     mini_batch_size = targets.shape[0]  # targets = (m,seq_length) rows of tokens each sample
     seq_length = targets.shape[1]
 
-    vocab_size = Why.shape[0]
+    #vocab_size = Why.shape[0]
 
     #initialize grads
     dWhy,dby = jnp.zeros_like(Why), jnp.zeros_like(by)
@@ -420,7 +420,7 @@ def lstm_layer_backward(dh_next_layer,gates_cache,states_cache,params):
     mini_batch_size = hs[-1].shape[1]  # note -1 is dict key for initilized h state , not last 
     seq_length = len(xs)-1 # make sure this works every layer ?
 
-    vocab_size = params['Wxc'].shape[1]
+    #vocab_size = params['Wxc'].shape[1]
 
     # unpack parameters
 
@@ -512,30 +512,28 @@ def lstm_layer_backward(dh_next_layer,gates_cache,states_cache,params):
 
     return dh_previous_layer, grads
 
-def embedding_backward(dh_next_layer,inputs,params):
+def embedding_backward(dh_next_layer,inputs_onehot,params):
 
     # dims
-    mini_batch_size = inputs[0].shape[1]
-    seq_length = len(inputs) - 1
+    mini_batch_size = inputs_onehot[0].shape[1]
+    seq_length = len(inputs_onehot) - 1
     #print("SEQ LENGTH ",seq_length)
 
-    vocab_size = inputs[0].shape[0]
+    vocab_size = inputs_onehot[0].shape[0]
 
     Exe = params['Exe']
-
-    assert(Exe.shape[1]==vocab_size)
-
-    seq_length = len(dh_next_layer) #check this!
 
     dExe=jnp.zeros_like(Exe)
 
     for t in reversed(range(seq_length)):
 
-        x_batch = inputs[t]
+        x_batch = inputs_onehot[t]
 
-        dh = dh_next_layer[t] + dhnext # backprop into h
+        dh = dh_next_layer[t]
 
         dExe += jnp.matmul(dh,x_batch.T)
+
+    grads = dict()
 
     grads['Exe']=dExe
 
@@ -544,8 +542,8 @@ def embedding_backward(dh_next_layer,inputs,params):
         
     return grads
 
-@jit  # decorator to jit compile the function for faster execution 
-def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_grads_mems,all_sqrd_mems,beta1,beta2,learning_rate):
+@partial(jit,static_argnames=['vocab_size'])  # decorator to jit compile the function for faster execution 
+def sgd_step_adam(current_step,inputs,targets,vocab_size,h_inputs,c_inputs,all_params,all_grads_mems,all_sqrd_mems,beta1,beta2,learning_rate):
     '''
     Performs a single optimization step using the ADAM algorithm 
 
@@ -583,9 +581,7 @@ def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_g
     mini_batch_size = inputs.shape[0]
     seq_length = inputs.shape[1]
 
-    num_layers = len(all_params)-1  # this is number of lstm layers 
-
-    vocab_size = all_params[0]['Wxc'].shape[1]
+    num_layers = len(all_params)-2  # this is number of lstm layers 
 
     n = current_step
 
@@ -593,7 +589,9 @@ def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_g
 
     layer_inputs = {}
 
-    inputs_onehot = encode_inputs(inputs,vocab)
+    print(vocab_size)
+
+    inputs_onehot = encode_inputs(inputs,vocab_size)
 
     layer_inputs[0] = embedding_forward(inputs_onehot,all_params[-1])
 
@@ -670,7 +668,7 @@ def sgd_step_adam(current_step,inputs,targets,h_inputs,c_inputs,all_params,all_g
     
     return loss, params_cache, hidden_cache
 
-@jit 
+@jit
 def validation_loss(inputs,targets,h_inputs,c_inputs,all_params):
     '''
     Forward pass to get loss on validation data 
@@ -685,13 +683,15 @@ def validation_loss(inputs,targets,h_inputs,c_inputs,all_params):
     '''
     print('Val loss tracing...') # won't appear in jit compiled function 
 
-    num_layers = len(all_params)-1
+    num_layers = len(all_params)-2
 
-    vocab_size = all_params[0]['Wxc'].shape[1]
+    vocab_size = all_params[-1]['Exe'].shape[1]
 
     layer_inputs={}
 
-    layer_inputs[0] = encode_inputs(inputs,vocab_size)
+    inputs_onehot = encode_inputs(inputs,vocab_size)
+
+    layer_inputs[0] = embedding_forward(inputs_onehot,all_params[-1])
 
     for l in range(num_layers):
 
@@ -729,9 +729,9 @@ def sample(seed_ix,n,key,h_inputs,c_inputs,all_params,temperature=1.0):
         ixes (list): list of sampled character indices 
     '''
 
-    num_layers = len(all_params)-1
+    num_layers = len(all_params)-2
 
-    vocab_size = all_params[0]['Wxc'].shape[1]
+    vocab_size = all_params[-1]['Exe'].shape[1]
 
     #unpack params for output layer
     Why = all_params[num_layers]['Why']
@@ -740,9 +740,7 @@ def sample(seed_ix,n,key,h_inputs,c_inputs,all_params,temperature=1.0):
     x = jnp.zeros((vocab_size, 1))
     x = x.at[seed_ix].set(1)
 
-    layer_inputs = {}
-
-    layer_inputs[0] = x
+    x = jnp.matmul(all_params[-1]['Exe'],x)
 
     xs_layers = {}
     hs_layers = {}
@@ -814,7 +812,7 @@ def sample(seed_ix,n,key,h_inputs,c_inputs,all_params,temperature=1.0):
         #ixes.append(int(ix))
         ixes.append(int(ix))
 
-        xs_layers[t+1][0] = x_new
+        xs_layers[t+1][0] = jnp.matmul(all_params[-1]['Exe'],x_new)
 
     return ixes
 
@@ -889,7 +887,8 @@ def train_character_lstm(seq_length,
     h_inputs_val,c_inputs_val={},{} # start val network with blank states each time
 
     key,subkey = random.split(key)
-    all_params[-1],all_grads[-1],all_sqrd[-1] = initialize_embbeding_weights(key,hidden_sizes[0],vocab_size)
+    # fix embedding and first lstm layer to have size d_embedding = hidden_sizes[0]
+    all_params[-1],all_grads[-1],all_sqrd[-1] = initialize_embedding_weights(key,hidden_sizes[0],vocab_size)
 
     for l in range(num_layers):
 
@@ -957,6 +956,7 @@ def train_character_lstm(seq_length,
                                                                 current_step=n,
                                                                 inputs=inputs,
                                                                 targets=targets,
+                                                                vocab_size=vocab_size,
                                                                 h_inputs=h_inputs,
                                                                 c_inputs=c_inputs,
                                                                 all_params=all_params,
