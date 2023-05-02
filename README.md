@@ -16,9 +16,11 @@ The minimal code sample for the RNN network is great for understanding the steps
   
   3. batch processing of samples
   
-  4. using adaptive learning rate optimization like ADAM or RMSprop
+  4. static embedding layer before first LSTM layer 
   
-  5. code that can run on a GPU to speed up computations
+  5. using adaptive learning rate optimization like ADAM or RMSprop
+  
+  6. code that can run on a GPU to speed up computations
 
 To see the original torch/lua implementation by Andrej see here, and to see an updated version by __ see here.  
 
@@ -30,11 +32,14 @@ Contents:
 
 * lstm_network1.py - module for a single layer LSTM in python, bundling the various methods and weights inside an LSTM class.
 
-* deep_lstm_jax.py - module for multi-layer LSTM which replaces numpy with jax.fastmat and jit functions for GPU compatibility/speed up. This verision is written as python library of indepedent functions without any classes in order to make working with JAX , and JIT.  
+* jax_char_lstm.py - module for multi-layer LSTM which replaces numpy with jax.fastmat and jit functions for GPU compatibility/speed up. This verision is written as python library of indepedent functions without any classes in order to make working with JAX , and JIT.  
 
-* Notebook1_RNN_vs_LSTM.ipynb - Colab notebook comparing the performance of the vanilla RNN code to the deep LSTM code
+* Notebook1_RNN_vs_LSTM_Comparisons.ipynb - Colab notebook comparing the performance of the vanilla RNN code to the deep LSTM code
 
-* Notebook2_LSTM_Training_Illiad.ipynb
+TODO!!!
+_____
+
+* Notebook2_LSTM_Tuning_Tests.ipynb
 
 * Notebook3_LSTM_Training_LargeTextCorpus - testing on a much larger test corpus to compare performance and results 
 
